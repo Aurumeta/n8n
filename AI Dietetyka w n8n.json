@@ -1,0 +1,328 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-webhook",
+        "options": {}
+      },
+      "name": "WhatsApp Webhook (Trigger)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "id": "node1"
+    },
+    {
+      "parameters": {
+        "conditions": [
+          {
+            "value1": "={{ $json.body.entry[0].changes[0].value.messages[0].type }}",
+            "operation": "string",
+            "value2": "text"
+          }
+        ]
+      },
+      "name": "If Message Type Is Text",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "id": "node2",
+      "position": [
+        400,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": [
+          {
+            "value1": "={{ $json.body.entry[0].changes[0].value.messages[0].type }}",
+            "operation": "string",
+            "value2": "image"
+          }
+        ]
+      },
+      "name": "If Message Type Is Image",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "id": "node3",
+      "position": [
+        400,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.entry[0].changes[0].value.messages[0].image.url }}",
+        "options": {
+          "responseFormat": "base64"
+        }
+      },
+      "name": "Download Image as Base64",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "id": "node4",
+      "position": [
+        600,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "bodyParameters": {
+          "model": "gpt-4-vision-preview",
+          "messages": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Analyze this image for dietary purposes. What do you see? (e.g., ingredients in a fridge, a meal on a plate, a restaurant menu)."
+                },
+                {
+                  "type": "image_url",
+                  "image_url": {
+                    "url": "data:image/jpeg;base64,={{ $node[\"Download Image as Base64\"].json.data }}"
+                  }
+                }
+              ]
+            }
+          ],
+          "max_tokens": 1000
+        },
+        "sendHeaders": [
+          {
+            "name": "Authorization",
+            "value": "Bearer YOUR_OPENAI_API_KEY"
+          },
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "options": {}
+      },
+      "name": "GPT-4 Vision API Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "id": "node5",
+      "position": [
+        800,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Your custom code to parse GPT-4 Vision response and format output\n// Example: return { response: $json.choices[0].message.content };\n"
+      },
+      "name": "Process Vision Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "id": "node6",
+      "position": [
+        1000,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "bodyParameters": {
+          "model": "gpt-4o",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an AI Dietitian. Provide personalized dietary advice and meal plans."
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.body.entry[0].changes[0].value.messages[0].text }}"
+            }
+          ]
+        },
+        "sendHeaders": [
+          {
+            "name": "Authorization",
+            "value": "Bearer YOUR_OPENAI_API_KEY"
+          },
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "options": {}
+      },
+      "name": "GPT-4 Text API Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "id": "node7",
+      "position": [
+        600,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Your custom code to parse GPT-4 text response and format output\n// Example: return { response: $json.choices[0].message.content };\n"
+      },
+      "name": "Process Text Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "id": "node8",
+      "position": [
+        800,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_WHATSAPP_SEND_MESSAGE_API_URL",
+        "bodyParameters": {
+          "to": "={{ $json.body.entry[0].changes[0].value.messages[0].from }}",
+          "text": "={{ $json.response }}"
+        },
+        "sendHeaders": [
+          {
+            "name": "Authorization",
+            "value": "Bearer YOUR_WHATSAPP_API_KEY"
+          },
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "options": {}
+      },
+      "name": "Send WhatsApp Response (Image)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "id": "node9",
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_WHATSAPP_SEND_MESSAGE_API_URL",
+        "bodyParameters": {
+          "to": "={{ $json.body.entry[0].changes[0].value.messages[0].from }}",
+          "text": "={{ $json.response }}"
+        },
+        "sendHeaders": [
+          {
+            "name": "Authorization",
+            "value": "Bearer YOUR_WHATSAPP_API_KEY"
+          },
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "options": {}
+      },
+      "name": "Send WhatsApp Response (Text)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "id": "node10",
+      "position": [
+        1000,
+        -100
+      ]
+    }
+  ],
+  "connections": {
+    "node1": {
+      "main": [
+        [
+          {
+            "node": "If Message Type Is Text",
+            "index": 0
+          },
+          {
+            "node": "If Message Type Is Image",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node2": {
+      "main": [
+        [
+          {
+            "node": "GPT-4 Text API Call",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node3": {
+      "main": [
+        [
+          {
+            "node": "Download Image as Base64",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node4": {
+      "main": [
+        [
+          {
+            "node": "GPT-4 Vision API Call",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node5": {
+      "main": [
+        [
+          {
+            "node": "Process Vision Output",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node6": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Response (Image)",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node7": {
+      "main": [
+        [
+          {
+            "node": "Process Text Output",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node8": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Response (Text)",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionTimeout": 0
+  },
+  "version": 1
+}
